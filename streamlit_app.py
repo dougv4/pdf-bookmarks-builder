@@ -246,6 +246,16 @@ def build_ui() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     st.title(APP_TITLE)
     st.caption("Upload do PDF + otimizacao opcional + geracao de marcadores")
+    st.info(
+        "Como usar:\n"
+        "1. Suba o PDF.\n"
+        "2. Copie o sumario bruto do livro.\n"
+        "3. Abra o bloco `Prompt para limpar um sumario desformatado com LLM` e use esse prompt no seu LLM.\n"
+        "4. Cole no app apenas a resposta final no formato `LEVEL | TITLE | PAGE`.\n"
+        "5. Clique em `Validar e gerar preview` para revisar a arvore.\n"
+        "6. Se o preview estiver correto, clique em `Gerar PDF com marcadores`.\n"
+        "7. Baixe o PDF final com bookmarks."
+    )
 
     with st.sidebar:
         st.subheader("Dependencias")
