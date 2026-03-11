@@ -1,2 +1,2 @@
 streamlit>=1.36,<2
-
+pypdf>=5,<6

@@ -1,245 +1,24 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import re
 import shutil
-import subprocess
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
 
 import streamlit as st
 
+from pdf_bookmarks_builder.bookmarks import (
+    LLM_PROMPT_TEMPLATE,
+    build_outline_tree,
+    count_nodes,
+    parse_structured_toc,
+    render_tree_text,
+    write_pdfmark,
+)
+from pdf_bookmarks_builder.pdf_ops import apply_bookmarks, file_size_text, optimize_pdf
+
 
 APP_TITLE = "PDF Bookmarks Builder"
-
-LLM_PROMPT_TEMPLATE = """Transforme o sumario desformatado abaixo em um formato estritamente estruturado para marcadores de PDF.
-
-Regras obrigatorias:
-- Retorne apenas linhas no formato `LEVEL | TITLE | PAGE`
-- `LEVEL` deve ser apenas um destes valores: `UNIT`, `CHAPTER`, `SECTION`
-- `TITLE` deve preservar o texto do sumario
-- `PAGE` deve ser um numero inteiro
-- Uma entrada por linha
-- Nao inclua comentarios, markdown, cercas de codigo, bullets ou texto extra
-- Ignore subtitulos menores que nao devam virar marcador
-- Mantenha a hierarquia correta: `UNIT > CHAPTER > SECTION`
-
-Exemplo de saida valida:
-UNIT | UNIDADE 1: Olhares em perspectiva | 16
-CHAPTER | CAPITULO 1: Romantismo: poesia (I) / Classes de palavras: revisao (I) / Noticia e enquete | 19
-SECTION | LITERATURA | 19
-SECTION | Foco no texto | 21
-
-Agora converta o texto abaixo:
-
-{{SUMARIO}}
-"""
-
-
-@dataclass
-class CmdResult:
-    code: int
-    stdout: str
-    stderr: str
-    cmd: str
-
-
-def run_cmd(cmd: list[str]) -> CmdResult:
-    proc = subprocess.run(cmd, text=True, capture_output=True)
-    return CmdResult(
-        code=proc.returncode,
-        stdout=proc.stdout.strip(),
-        stderr=proc.stderr.strip(),
-        cmd=" ".join(cmd),
-    )
-
-
-def file_size_text(path: Path) -> str:
-    size = path.stat().st_size
-    return f"{size:,} bytes ({size / 1024 / 1024:.2f} MB)"
-
-
-def optimize_pdf(
-    input_pdf: Path,
-    output_pdf: Path,
-    color_resolution: int,
-    gray_resolution: int,
-    jpeg_quality: int,
-) -> list[CmdResult]:
-    tmp_unlinearized = output_pdf.with_suffix(".tmp.unlinearized.pdf")
-    gs_cmd = [
-        "gs",
-        "-sDEVICE=pdfwrite",
-        "-dCompatibilityLevel=1.7",
-        "-dNOPAUSE",
-        "-dQUIET",
-        "-dBATCH",
-        "-dDetectDuplicateImages=true",
-        "-sColorConversionStrategy=RGB",
-        "-dProcessColorModel=/DeviceRGB",
-        "-dDownsampleColorImages=true",
-        "-dColorImageDownsampleType=/Bicubic",
-        f"-dColorImageResolution={color_resolution}",
-        "-dDownsampleGrayImages=true",
-        "-dGrayImageDownsampleType=/Bicubic",
-        f"-dGrayImageResolution={gray_resolution}",
-        "-dAutoFilterColorImages=false",
-        "-dColorImageFilter=/DCTEncode",
-        f"-dJPEGQ={jpeg_quality}",
-        f"-sOutputFile={tmp_unlinearized}",
-        str(input_pdf),
-    ]
-    qpdf_linearize_cmd = ["qpdf", "--linearize", str(tmp_unlinearized), str(output_pdf)]
-    qpdf_check_cmd = ["qpdf", "--check", str(output_pdf)]
-
-    results = [run_cmd(gs_cmd)]
-    if results[-1].code != 0:
-        return results
-
-    results.append(run_cmd(qpdf_linearize_cmd))
-    if results[-1].code != 0:
-        return results
-
-    if tmp_unlinearized.exists():
-        tmp_unlinearized.unlink()
-
-    results.append(run_cmd(qpdf_check_cmd))
-    return results
-
-
-def parse_structured_toc(raw_text: str) -> list[dict[str, object]]:
-    entries: list[dict[str, object]] = []
-    for line_no, raw_line in enumerate(raw_text.splitlines(), start=1):
-        line = raw_line.strip()
-        if not line:
-            continue
-        parts = [part.strip() for part in line.split("|")]
-        if len(parts) != 3:
-            raise ValueError(f"Linha {line_no}: esperado formato `LEVEL | TITLE | PAGE`.")
-        level, title, page_str = parts
-        level = level.upper()
-        if level not in {"UNIT", "CHAPTER", "SECTION"}:
-            raise ValueError(f"Linha {line_no}: LEVEL invalido `{level}`.")
-        if not page_str.isdigit():
-            raise ValueError(f"Linha {line_no}: PAGE invalido `{page_str}`.")
-        title = re.sub(r"\s+", " ", title).strip()
-        if not title:
-            raise ValueError(f"Linha {line_no}: TITLE vazio.")
-        entries.append({"level": level, "title": title, "page": int(page_str)})
-    if not entries:
-        raise ValueError("Nenhuma entrada valida encontrada.")
-    return entries
-
-
-def build_outline_tree(entries: list[dict[str, object]]) -> list[dict[str, object]]:
-    roots: list[dict[str, object]] = []
-    current_unit: dict[str, object] | None = None
-    current_chapter: dict[str, object] | None = None
-
-    def make_node(entry: dict[str, object]) -> dict[str, object]:
-        return {
-            "level": entry["level"],
-            "title": entry["title"],
-            "page": entry["page"],
-            "children": [],
-        }
-
-    for entry in entries:
-        level = str(entry["level"])
-        node = make_node(entry)
-        if level == "UNIT":
-            roots.append(node)
-            current_unit = node
-            current_chapter = None
-        elif level == "CHAPTER":
-            if current_unit is None:
-                roots.append(node)
-            else:
-                current_unit["children"].append(node)
-            current_chapter = node
-        else:
-            if current_chapter is not None:
-                current_chapter["children"].append(node)
-            elif current_unit is not None:
-                current_unit["children"].append(node)
-            else:
-                roots.append(node)
-    return roots
-
-
-def to_utf16_hex(text: str) -> str:
-    return "FEFF" + text.encode("utf-16-be").hex().upper()
-
-
-def write_pdfmark(tree: list[dict[str, object]], output_path: Path) -> None:
-    with output_path.open("w", encoding="ascii") as ps_file:
-        def emit(node: dict[str, object]) -> None:
-            children = node["children"]
-            line = f"[ /Title <{to_utf16_hex(str(node['title']))}> /Page {int(node['page'])}"
-            if children:
-                line += f" /Count {len(children)}"
-            line += " /OUT pdfmark\n"
-            ps_file.write(line)
-            for child in children:
-                emit(child)
-
-        for root in tree:
-            emit(root)
-
-
-def render_tree_text(tree: list[dict[str, object]]) -> str:
-    lines: list[str] = []
-
-    def walk(node: dict[str, object], depth: int = 0) -> None:
-        indent = "  " * depth
-        lines.append(f"{indent}- p{node['page']} {node['title']}")
-        for child in node["children"]:
-            walk(child, depth + 1)
-
-    for root in tree:
-        walk(root)
-    return "\n".join(lines)
-
-
-def apply_bookmarks(input_pdf: Path, pdfmark_path: Path, output_pdf: Path) -> list[CmdResult]:
-    tmp_pdf = output_pdf.with_suffix(".tmp.with-bookmarks.pdf")
-    gs_cmd = [
-        "gs",
-        "-dBATCH",
-        "-dNOPAUSE",
-        "-dQUIET",
-        "-sDEVICE=pdfwrite",
-        f"-sOutputFile={tmp_pdf}",
-        str(input_pdf),
-        str(pdfmark_path),
-    ]
-    qpdf_linearize_cmd = ["qpdf", "--linearize", str(tmp_pdf), str(output_pdf)]
-    qpdf_check_cmd = ["qpdf", "--check", str(output_pdf)]
-
-    results = [run_cmd(gs_cmd)]
-    if results[-1].code != 0:
-        return results
-
-    results.append(run_cmd(qpdf_linearize_cmd))
-    if results[-1].code != 0:
-        return results
-
-    if tmp_pdf.exists():
-        tmp_pdf.unlink()
-
-    results.append(run_cmd(qpdf_check_cmd))
-    return results
-
-
-def count_nodes(tree: list[dict[str, object]]) -> int:
-    total = 0
-    stack = list(tree)
-    while stack:
-        node = stack.pop()
-        total += 1
-        stack.extend(node["children"])
-    return total
 
 
 def build_ui() -> None:
@@ -259,8 +38,7 @@ def build_ui() -> None:
 
     with st.sidebar:
         st.subheader("Dependencias")
-        deps = ("gs", "qpdf")
-        for dep in deps:
+        for dep in ("gs", "qpdf"):
             if shutil.which(dep):
                 st.success(f"{dep}: ok")
             else:
@@ -300,8 +78,8 @@ def build_ui() -> None:
     preview_button = st.button("Validar e gerar preview", use_container_width=True)
     build_button = st.button("Gerar PDF com marcadores", type="primary", use_container_width=True)
 
-    tree: list[dict[str, object]] | None = None
-    entries: list[dict[str, object]] = []
+    tree = None
+    entries = []
 
     if raw_summary.strip():
         try:
@@ -348,7 +126,7 @@ def build_ui() -> None:
             preview_path.write_text(render_tree_text(tree), encoding="utf-8")
 
             with st.status("Aplicando marcadores...", expanded=True) as status:
-                results: list[CmdResult] = []
+                results = []
                 if optimize_before_bookmarks:
                     status.write("Executando otimizacao com Ghostscript + qpdf...")
                     optimize_results = optimize_pdf(
