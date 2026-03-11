@@ -60,6 +60,54 @@ def file_size_text(path: Path) -> str:
     return f"{size:,} bytes ({size / 1024 / 1024:.2f} MB)"
 
 
+def optimize_pdf(
+    input_pdf: Path,
+    output_pdf: Path,
+    color_resolution: int,
+    gray_resolution: int,
+    jpeg_quality: int,
+) -> list[CmdResult]:
+    tmp_unlinearized = output_pdf.with_suffix(".tmp.unlinearized.pdf")
+    gs_cmd = [
+        "gs",
+        "-sDEVICE=pdfwrite",
+        "-dCompatibilityLevel=1.7",
+        "-dNOPAUSE",
+        "-dQUIET",
+        "-dBATCH",
+        "-dDetectDuplicateImages=true",
+        "-sColorConversionStrategy=RGB",
+        "-dProcessColorModel=/DeviceRGB",
+        "-dDownsampleColorImages=true",
+        "-dColorImageDownsampleType=/Bicubic",
+        f"-dColorImageResolution={color_resolution}",
+        "-dDownsampleGrayImages=true",
+        "-dGrayImageDownsampleType=/Bicubic",
+        f"-dGrayImageResolution={gray_resolution}",
+        "-dAutoFilterColorImages=false",
+        "-dColorImageFilter=/DCTEncode",
+        f"-dJPEGQ={jpeg_quality}",
+        f"-sOutputFile={tmp_unlinearized}",
+        str(input_pdf),
+    ]
+    qpdf_linearize_cmd = ["qpdf", "--linearize", str(tmp_unlinearized), str(output_pdf)]
+    qpdf_check_cmd = ["qpdf", "--check", str(output_pdf)]
+
+    results = [run_cmd(gs_cmd)]
+    if results[-1].code != 0:
+        return results
+
+    results.append(run_cmd(qpdf_linearize_cmd))
+    if results[-1].code != 0:
+        return results
+
+    if tmp_unlinearized.exists():
+        tmp_unlinearized.unlink()
+
+    results.append(run_cmd(qpdf_check_cmd))
+    return results
+
+
 def parse_structured_toc(raw_text: str) -> list[dict[str, object]]:
     entries: list[dict[str, object]] = []
     for line_no, raw_line in enumerate(raw_text.splitlines(), start=1):
@@ -197,7 +245,7 @@ def count_nodes(tree: list[dict[str, object]]) -> int:
 def build_ui() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     st.title(APP_TITLE)
-    st.caption("Upload do PDF + sumario estruturado + geracao de marcadores")
+    st.caption("Upload do PDF + otimizacao opcional + geracao de marcadores")
 
     with st.sidebar:
         st.subheader("Dependencias")
@@ -207,6 +255,15 @@ def build_ui() -> None:
                 st.success(f"{dep}: ok")
             else:
                 st.error(f"{dep}: ausente")
+        st.divider()
+        st.subheader("Otimizacao")
+        optimize_before_bookmarks = st.checkbox(
+            "Otimizar PDF antes de aplicar bookmarks",
+            value=True,
+        )
+        color_resolution = st.slider("Color DPI", 72, 300, 150, 1)
+        gray_resolution = st.slider("Gray DPI", 72, 300, 150, 1)
+        jpeg_quality = st.slider("JPEG quality", 40, 95, 80, 1)
 
     left, right = st.columns([1, 1])
     with left:
@@ -270,6 +327,8 @@ def build_ui() -> None:
         with tempfile.TemporaryDirectory(prefix="pdf_bookmarks_app_") as tmp_dir:
             tmp_path = Path(tmp_dir)
             input_path = tmp_path / "input.pdf"
+            working_input_path = input_path
+            optimized_path = tmp_path / "optimized.pdf"
             pdfmark_path = tmp_path / "bookmarks.ps"
             output_path = tmp_path / output_name
             preview_path = tmp_path / "bookmarks-preview.txt"
@@ -279,7 +338,24 @@ def build_ui() -> None:
             preview_path.write_text(render_tree_text(tree), encoding="utf-8")
 
             with st.status("Aplicando marcadores...", expanded=True) as status:
-                results = apply_bookmarks(input_path, pdfmark_path, output_path)
+                results: list[CmdResult] = []
+                if optimize_before_bookmarks:
+                    status.write("Executando otimizacao com Ghostscript + qpdf...")
+                    optimize_results = optimize_pdf(
+                        input_pdf=input_path,
+                        output_pdf=optimized_path,
+                        color_resolution=color_resolution,
+                        gray_resolution=gray_resolution,
+                        jpeg_quality=jpeg_quality,
+                    )
+                    results.extend(optimize_results)
+                    if optimize_results and optimize_results[-1].code == 0:
+                        working_input_path = optimized_path
+
+                if not results or results[-1].code == 0:
+                    status.write("Aplicando marcadores e linearizando resultado final...")
+                    results.extend(apply_bookmarks(working_input_path, pdfmark_path, output_path))
+
                 for res in results:
                     status.write(f"`$ {res.cmd}`")
                     if res.stdout:
@@ -301,14 +377,18 @@ def build_ui() -> None:
             out_bytes = output_path.read_bytes()
             before_size = input_path.stat().st_size
             after_size = output_path.stat().st_size
+            optimized_size = working_input_path.stat().st_size
 
             st.subheader("Resultado")
-            c1, c2, c3 = st.columns(3)
+            c1, c2, c3, c4 = st.columns(4)
             c1.metric("Entrada", f"{before_size / 1024 / 1024:.2f} MB")
-            c2.metric("Saida", f"{after_size / 1024 / 1024:.2f} MB")
-            c3.metric("Marcadores", str(count_nodes(tree)))
+            c2.metric("Apos otimizar", f"{optimized_size / 1024 / 1024:.2f} MB")
+            c3.metric("Saida", f"{after_size / 1024 / 1024:.2f} MB")
+            c4.metric("Marcadores", str(count_nodes(tree)))
 
             st.write(f"- Entrada: `{file_size_text(input_path)}`")
+            if optimize_before_bookmarks:
+                st.write(f"- Apos otimizacao: `{file_size_text(working_input_path)}`")
             st.write(f"- Saida: `{file_size_text(output_path)}`")
 
             st.download_button(

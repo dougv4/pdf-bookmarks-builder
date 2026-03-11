@@ -2,6 +2,7 @@
 
 Aplicacao Streamlit para:
 - subir um PDF
+- otimizar tamanho com Ghostscript + qpdf
 - colar um sumario estruturado
 - gerar bookmarks/marcadores no PDF
 - baixar o PDF final linearizado
@@ -37,6 +38,21 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
+## Otimizacao
+
+O app pode otimizar o PDF antes de aplicar os bookmarks.
+
+Parametros disponiveis na UI:
+- `Color DPI`
+- `Gray DPI`
+- `JPEG quality`
+
+Pipeline:
+1. compressao com Ghostscript
+2. linearizacao com qpdf
+3. aplicacao dos bookmarks
+4. linearizacao final
+
 ## Deploy no Streamlit Community Cloud
 
 1. Suba este diretorio para um repositorio publico.
@@ -44,4 +60,3 @@ streamlit run streamlit_app.py
    - Branch: `main`
    - Main file path: `streamlit_app.py`
 3. O arquivo `packages.txt` instala `ghostscript` e `qpdf`.
-
