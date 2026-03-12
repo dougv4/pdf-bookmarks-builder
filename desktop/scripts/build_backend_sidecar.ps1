@@ -10,11 +10,7 @@ $Entrypoint = Join-Path $DesktopDir 'backend_entrypoint.py'
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
-if (-not (Get-Command pyinstaller -ErrorAction SilentlyContinue)) {
-  throw 'pyinstaller nao encontrado. Instale com: py -m pip install pyinstaller'
-}
-
-pyinstaller `
+py -m PyInstaller `
   --noconfirm `
   --clean `
   --onefile `
