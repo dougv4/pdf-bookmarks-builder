@@ -75,6 +75,8 @@ cd desktop
 ./scripts/build_desktop_macos.sh macos-arm64
 ```
 
+Se `APPLE_SIGNING_IDENTITY` nao estiver definido, esse build gera um `DMG` funcional para teste local, mas o Gatekeeper vai bloquear a abertura em maquinas de usuario por falta de assinatura/notarizacao.
+
 Windows:
 
 ```powershell
@@ -84,6 +86,7 @@ cd desktop
 
 Saidas esperadas:
 - `src-tauri/target/release/bundle/dmg/*.dmg`
+- `src-tauri/target/release/bundle/macos/*.app.tar.gz`
 - `src-tauri/target/release/bundle/msi/*.msi`
 - `src-tauri/target/release/bundle/nsis/*.exe` (quando o target NSIS estiver habilitado)
 
@@ -95,6 +98,30 @@ Workflow:
 Jobs:
 - `macos-14` -> `DMG`
 - `windows-latest` -> `MSI`
+
+### Secrets para assinatura/notarizacao no macOS
+
+Opcional para build interno, obrigatorio para distribuicao sem bloqueio do Gatekeeper:
+
+- `APPLE_CERTIFICATE_BASE64`: certificado `.p12` em base64
+- `APPLE_CERTIFICATE_PASSWORD`: senha do `.p12`
+- `APPLE_SIGNING_IDENTITY`: nome exato do `Developer ID Application`
+
+Notarizacao via App Store Connect API:
+
+- `APPLE_API_KEY_ID`
+- `APPLE_API_ISSUER`
+- `APPLE_API_KEY_BASE64`
+
+Fallback com Apple ID:
+
+- `APPLE_ID`
+- `APPLE_APP_PASSWORD`
+- `APPLE_TEAM_ID`
+
+Scripts envolvidos:
+- `desktop/scripts/import_macos_signing_cert.sh`
+- `desktop/scripts/package_macos_release.sh`
 
 ## Observacao sobre Windows
 

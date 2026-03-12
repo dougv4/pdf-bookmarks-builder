@@ -21,4 +21,5 @@ cd "$DESKTOP_DIR"
 npm ci
 ./scripts/build_backend_sidecar.sh "$PLATFORM_DIR"
 ./scripts/stage_macos_resources.sh "$PLATFORM_DIR"
-npm run tauri:build
+npm run tauri:build -- --bundles app
+./scripts/package_macos_release.sh "$PLATFORM_DIR"

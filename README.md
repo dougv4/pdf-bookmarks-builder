@@ -77,6 +77,13 @@ O projeto agora inclui a base para gerar instaladores desktop:
 - macOS: `DMG`
 - Windows: `MSI`
 
+No macOS, para distribuicao real, o pipeline precisa:
+- assinar o bundle com `Developer ID Application`
+- assinar os binarios internos (`backend`, `gs`, `qpdf`, `.dylib`)
+- notarizar o artefato final
+
+Sem isso, o Gatekeeper tende a marcar o app como danificado ou nao confiavel.
+
 Arquivos principais:
 - workflow CI: [`.github/workflows/build-desktop.yml`](.github/workflows/build-desktop.yml)
 - scripts de build/staging: `desktop/scripts/`
