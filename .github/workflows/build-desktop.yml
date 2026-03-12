@@ -8,6 +8,7 @@ on:
 
 env:
   QPDF_VERSION: "12.3.0"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build-macos:
@@ -91,12 +92,12 @@ jobs:
       - name: Download qpdf
         shell: pwsh
         run: |
-          $zip = \"$env:RUNNER_TEMP\\qpdf.zip\"
-          Invoke-WebRequest \"https://github.com/qpdf/qpdf/releases/download/v$env:QPDF_VERSION/qpdf-$env:QPDF_VERSION-msvc64.zip\" -OutFile $zip
-          Expand-Archive $zip -DestinationPath \"$env:RUNNER_TEMP\\qpdf\" -Force
-          $qpdfExe = Get-ChildItem \"$env:RUNNER_TEMP\\qpdf\" -Recurse -Filter qpdf.exe | Select-Object -First 1
+          $zip = "$env:RUNNER_TEMP\qpdf.zip"
+          Invoke-WebRequest "https://github.com/qpdf/qpdf/releases/download/v$env:QPDF_VERSION/qpdf-$env:QPDF_VERSION-msvc64.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\qpdf" -Force
+          $qpdfExe = Get-ChildItem "$env:RUNNER_TEMP\qpdf" -Recurse -Filter qpdf.exe | Select-Object -First 1
           if (-not $qpdfExe) { throw 'qpdf.exe nao encontrado apos extracao.' }
-          \"PDF_BUILDER_QPDF_PATH=$($qpdfExe.FullName)\" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PDF_BUILDER_QPDF_PATH=$($qpdfExe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install Python build dependencies
         shell: pwsh
