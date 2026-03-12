@@ -20,9 +20,16 @@ def resolve_binary(name: str) -> str:
     env_value = os.environ.get(env_key, "").strip()
     if env_value:
         return env_value
-    found = shutil.which(name)
-    if found:
-        return found
+    candidates = [name]
+    if os.name == "nt":
+        if name == "gs":
+            candidates = ["gswin64c.exe", "gswin32c.exe", "gs.exe", name]
+        elif not name.lower().endswith(".exe"):
+            candidates = [f"{name}.exe", name]
+    for candidate in candidates:
+        found = shutil.which(candidate)
+        if found:
+            return found
     raise RuntimeError(f"Dependencia ausente: `{name}`")
 
 
