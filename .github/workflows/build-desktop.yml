@@ -91,8 +91,29 @@ jobs:
           choco install ghostscript --yes
           $gsExe = Get-Command gswin64c.exe -ErrorAction SilentlyContinue
           if (-not $gsExe) { $gsExe = Get-Command gs.exe -ErrorAction SilentlyContinue }
+          if (-not $gsExe) {
+            $searchRoots = @(
+              'C:\Program Files\gs',
+              'C:\Program Files (x86)\gs',
+              'C:\ProgramData\chocolatey\lib\Ghostscript',
+              'C:\ProgramData\chocolatey\lib\ghostscript'
+            )
+            foreach ($root in $searchRoots) {
+              if (Test-Path $root) {
+                $candidate = Get-ChildItem $root -Recurse -Filter gswin64c.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+                if (-not $candidate) {
+                  $candidate = Get-ChildItem $root -Recurse -Filter gs.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+                }
+                if ($candidate) {
+                  $gsExe = $candidate.FullName
+                  break
+                }
+              }
+            }
+          }
           if (-not $gsExe) { throw 'Ghostscript nao encontrado apos instalacao.' }
-          "PDF_BUILDER_GS_PATH=$($gsExe.Source)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if ($gsExe -isnot [string]) { $gsExe = $gsExe.Source }
+          "PDF_BUILDER_GS_PATH=$gsExe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Download qpdf
         shell: pwsh
