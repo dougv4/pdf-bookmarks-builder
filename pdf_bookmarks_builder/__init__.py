@@ -11,6 +11,7 @@ from .bookmarks import (
 from .batch_models import BatchItemContract
 from .llm_clients import GeminiClient, OpenAIClient, ProviderClient
 from .pdf_ops import CmdResult, apply_bookmarks, file_size_text, optimize_pdf, require_binary
+from .service import ProcessRequest, ProcessResponse, ValidationResponse, process_pdf, validate_preview
 try:
     from .toc_detection import TOCCandidate, detect_toc_candidates, extract_front_matter_text
 except ModuleNotFoundError:  # pragma: no cover - optional until pypdf is installed
@@ -25,6 +26,8 @@ __all__ = [
     "OutlineNode",
     "CmdResult",
     "ProviderClient",
+    "ProcessRequest",
+    "ProcessResponse",
     "OpenAIClient",
     "GeminiClient",
     "TOCCandidate",
@@ -36,7 +39,10 @@ __all__ = [
     "file_size_text",
     "optimize_pdf",
     "parse_structured_toc",
+    "process_pdf",
     "render_tree_text",
     "require_binary",
+    "ValidationResponse",
+    "validate_preview",
     "write_pdfmark",
 ]

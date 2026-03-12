@@ -1,0 +1,133 @@
+name: build-desktop
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  QPDF_VERSION: "12.3.0"
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install macOS build dependencies
+        run: brew install ghostscript qpdf
+
+      - name: Install Python build dependencies
+        run: python3 -m pip install -r requirements.txt pyinstaller
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Smoke test backend
+        working-directory: .
+        run: python3 desktop/scripts/smoke_test_backend.py
+
+      - name: Stage backend and resources
+        working-directory: desktop
+        run: |
+          ./scripts/build_backend_sidecar.sh macos-arm64
+          ./scripts/stage_macos_resources.sh macos-arm64
+
+      - name: Build DMG
+        working-directory: desktop
+        run: npm run tauri:build
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-bookmarks-builder-macos
+          path: |
+            desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Ghostscript
+        shell: pwsh
+        run: choco install ghostscript --yes
+
+      - name: Download qpdf
+        shell: pwsh
+        run: |
+          $zip = \"$env:RUNNER_TEMP\\qpdf.zip\"
+          Invoke-WebRequest \"https://github.com/qpdf/qpdf/releases/download/v$env:QPDF_VERSION/qpdf-$env:QPDF_VERSION-msvc64.zip\" -OutFile $zip
+          Expand-Archive $zip -DestinationPath \"$env:RUNNER_TEMP\\qpdf\" -Force
+          $qpdfExe = Get-ChildItem \"$env:RUNNER_TEMP\\qpdf\" -Recurse -Filter qpdf.exe | Select-Object -First 1
+          if (-not $qpdfExe) { throw 'qpdf.exe nao encontrado apos extracao.' }
+          \"PDF_BUILDER_QPDF_PATH=$($qpdfExe.FullName)\" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install Python build dependencies
+        shell: pwsh
+        run: py -m pip install -r requirements.txt pyinstaller
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        shell: pwsh
+        run: npm ci
+
+      - name: Smoke test backend
+        working-directory: .
+        shell: pwsh
+        run: py desktop/scripts/smoke_test_backend.py
+
+      - name: Stage backend and resources
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          .\\scripts\\build_backend_sidecar.ps1 -PlatformDir windows-x64
+          .\\scripts\\stage_windows_resources.ps1 -PlatformDir windows-x64
+
+      - name: Build MSI
+        working-directory: desktop
+        shell: pwsh
+        run: npm run tauri:build
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-bookmarks-builder-windows
+          path: |
+            desktop/src-tauri/target/release/bundle/msi/*.msi
+            desktop/src-tauri/target/release/bundle/nsis/*.exe

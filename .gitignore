@@ -4,4 +4,12 @@ __pycache__/
 .venv/
 venv/
 .streamlit/secrets.toml
-
+desktop/node_modules/
+desktop/dist/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/__pycache__/
+desktop/.pyinstaller-work/
+desktop/.pyinstaller-spec/
+desktop/resources/binaries/
+desktop/resources/ghostscript/

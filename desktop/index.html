@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Bookmarks Builder Desktop</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div class="background-shell" aria-hidden="true"></div>
+    <main class="app-shell">
+      <section class="hero-card">
+        <p class="eyebrow">Desktop local</p>
+        <h1>PDF Bookmarks Builder</h1>
+        <p class="hero-copy">
+          Fluxo local para um PDF por vez: sumario estruturado manual, otimizacao opcional,
+          preview da arvore e geracao final com bookmarks.
+        </p>
+      </section>
+
+      <section class="grid-shell">
+        <article class="panel panel-form">
+          <header class="panel-head">
+            <h2>Arquivo</h2>
+            <p>Escolha o PDF local e defina o destino do arquivo final.</p>
+          </header>
+
+          <div class="field-row compact-row">
+            <div class="field grow">
+              <label for="input-path">PDF de entrada</label>
+              <input id="input-path" type="text" readonly placeholder="Selecione um PDF" />
+            </div>
+            <button id="pick-input-btn" class="btn secondary" type="button">Selecionar PDF</button>
+          </div>
+
+          <div class="field-row compact-row">
+            <div class="field grow">
+              <label for="output-path">PDF de saida</label>
+              <input id="output-path" type="text" placeholder="Escolha o destino do PDF final" />
+            </div>
+            <button id="pick-output-btn" class="btn secondary" type="button">Destino</button>
+          </div>
+
+          <div class="field-row split-row">
+            <label class="toggle-row">
+              <input id="optimize-checkbox" type="checkbox" checked />
+              <span>Otimizar PDF antes de aplicar os bookmarks</span>
+            </label>
+          </div>
+
+          <div class="field-grid three-up">
+            <label class="field">
+              <span>Color DPI</span>
+              <input id="color-dpi" type="number" min="72" max="300" step="1" value="150" />
+            </label>
+            <label class="field">
+              <span>Gray DPI</span>
+              <input id="gray-dpi" type="number" min="72" max="300" step="1" value="150" />
+            </label>
+            <label class="field">
+              <span>JPEG quality</span>
+              <input id="jpeg-quality" type="number" min="40" max="95" step="1" value="80" />
+            </label>
+          </div>
+
+          <header class="panel-head summary-head">
+            <h2>Sumario estruturado</h2>
+            <p>Use apenas linhas no formato <code>LEVEL | TITLE | PAGE</code>.</p>
+          </header>
+
+          <textarea id="structured-toc" class="summary-textarea" spellcheck="false" placeholder="UNIT | UNIDADE 1: Titulo | 16&#10;CHAPTER | CAPITULO 1: Titulo do capitulo | 19&#10;SECTION | LITERATURA | 19"></textarea>
+
+          <div class="action-row">
+            <button id="validate-btn" class="btn tertiary" type="button">Validar e gerar preview</button>
+            <button id="process-btn" class="btn primary" type="button">Processar PDF</button>
+          </div>
+        </article>
+
+        <article class="panel panel-side">
+          <section class="stack-block">
+            <header class="panel-head">
+              <h2>Preview</h2>
+              <p>O preview so aparece quando o sumario estiver valido.</p>
+            </header>
+            <div id="validation-banner" class="status-banner muted">Aguardando validacao.</div>
+            <pre id="preview-box" class="preview-box">Sem preview no momento.</pre>
+          </section>
+
+          <section class="stack-block metrics-block">
+            <header class="panel-head">
+              <h2>Resultado</h2>
+              <p>Metadados do ultimo processamento concluido.</p>
+            </header>
+            <div class="metric-grid">
+              <div class="metric-card">
+                <span>Entrada</span>
+                <strong id="metric-input">-</strong>
+              </div>
+              <div class="metric-card">
+                <span>Apos otimizar</span>
+                <strong id="metric-optimized">-</strong>
+              </div>
+              <div class="metric-card">
+                <span>Saida</span>
+                <strong id="metric-output">-</strong>
+              </div>
+              <div class="metric-card">
+                <span>Marcadores</span>
+                <strong id="metric-bookmarks">-</strong>
+              </div>
+            </div>
+            <div id="result-paths" class="result-paths"></div>
+          </section>
+
+          <section class="stack-block">
+            <header class="panel-head">
+              <h2>Logs</h2>
+              <p>Saida agregada do backend local.</p>
+            </header>
+            <pre id="log-box" class="log-box">Nenhuma execucao ainda.</pre>
+          </section>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

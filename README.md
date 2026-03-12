@@ -10,6 +10,7 @@ Aplicacao Streamlit para:
 Agora o projeto possui duas apps:
 - `streamlit_app.py`: V1 manual, com um PDF por vez
 - `streamlit_batch_app.py`: V2 automatica, com varios PDFs por lote + OpenAI/Gemini
+- `desktop/`: workspace do app desktop local com `Tauri + Python`
 
 ## Formato do sumario
 
@@ -47,6 +48,51 @@ Para a V2:
 ```bash
 streamlit run streamlit_batch_app.py
 ```
+
+## Desktop local
+
+O workspace `desktop/` implementa a migracao do fluxo manual da V1 para um app desktop local.
+
+Release 1 do desktop:
+- um PDF por vez
+- sumario estruturado manual
+- otimizacao opcional
+- bookmarks + linearizacao
+- processamento local, sem Streamlit
+
+Backend local:
+- `python3 desktop/backend_entrypoint.py validate-preview`
+- `python3 desktop/backend_entrypoint.py process-pdf`
+
+O backend Python agora expoe um contrato reutilizavel para:
+- validar preview
+- processar o PDF final
+
+Documentacao especifica:
+- [`desktop/README.md`](desktop/README.md)
+
+## Instaladores
+
+O projeto agora inclui a base para gerar instaladores desktop:
+- macOS: `DMG`
+- Windows: `MSI`
+
+Arquivos principais:
+- workflow CI: [`.github/workflows/build-desktop.yml`](.github/workflows/build-desktop.yml)
+- scripts de build/staging: `desktop/scripts/`
+
+Os binarios nativos do app continuam sendo:
+- backend Python sidecar
+- `Ghostscript`
+- `qpdf`
+
+## Licenciamento do Ghostscript
+
+Ao distribuir instaladores com `Ghostscript` embutido, voce precisa revisar o licenciamento do Ghostscript (AGPL/comercial) antes de publicar para usuarios finais.
+
+Referencias oficiais:
+- [Ghostscript licensing](https://ghostscript.com/licensing/)
+- [qpdf licensing](https://qpdf.readthedocs.io/en/stable/license.html)
 
 ## Otimizacao
 
